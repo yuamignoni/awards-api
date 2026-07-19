@@ -1,0 +1,6 @@
+year;title;studios;producers;winner
+2000;Short Interval Start;Studio A;Alice Producer;yes
+2001;Short Interval End;Studio B;Alice Producer;yes
+1990;Long Interval Start;Studio C;Bob Producer;yes
+2010;Long Interval End;Studio D;Bob Producer;yes
+2025;Non-winning Movie;Studio E;Alice Producer;
