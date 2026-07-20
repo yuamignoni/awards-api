@@ -3,6 +3,7 @@ import {
   createDatabaseConnection,
   type DatabaseConnection,
 } from './database/connection';
+import { parseMoviesCsv } from './ingestion/parse-movies-csv';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -14,7 +15,9 @@ export interface BuildAppOptions {
   csvPath: string;
 }
 
-export function buildApp(_options: BuildAppOptions): FastifyInstance {
+export function buildApp(options: BuildAppOptions): FastifyInstance {
+  parseMoviesCsv(options.csvPath);
+
   const app = Fastify({
     logger: true,
   });
