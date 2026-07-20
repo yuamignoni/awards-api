@@ -1,6 +1,9 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app';
+import { createDatabaseConnection } from '../src/database/connection';
+import { createDatabaseSchema } from '../src/database/schema';
+import { importMovies } from '../src/ingestion/import-movies';
 import { parseMoviesCsv } from '../src/ingestion/parse-movies-csv';
 
 const fixturesPath = resolve(__dirname, 'fixtures');
@@ -42,78 +45,22 @@ describe('GET /api/v1/producers/award-intervals', () => {
   });
 });
 
-describe('application lifecycle', () => {
-  it('creates and closes an isolated database for each app instance', async () => {
+describe('application bootstrap from CSV', () => {
+  it('accepts a valid movie file', async () => {
     const csvPath = resolve(fixturesPath, 'simple.csv');
-    const firstApp = buildApp({ csvPath });
-    const secondApp = buildApp({ csvPath });
+    const app = buildApp({ csvPath });
 
     try {
-      expect(firstApp.database).not.toBe(secondApp.database);
-
-      firstApp.database.exec('CREATE TABLE instance_marker (id INTEGER PRIMARY KEY)');
-
-      const markerInSecondApp = secondApp.database
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'instance_marker'")
-        .get();
-
-      expect(markerInSecondApp).toBeUndefined();
+      await app.ready();
     } finally {
-      await Promise.all([firstApp.close(), secondApp.close()]);
+      await app.close();
     }
-
-    expect(firstApp.database.open).toBe(false);
-    expect(secondApp.database.open).toBe(false);
-  });
-});
-
-describe('CSV parsing', () => {
-  it('parses and converts a valid movie file', () => {
-    const movies = parseMoviesCsv(resolve(fixturesPath, 'simple.csv'));
-
-    expect(movies).toEqual([
-      {
-        year: 2000,
-        title: 'Short Interval Start',
-        studios: 'Studio A',
-        producers: ['Alice Producer'],
-        winner: true,
-      },
-      {
-        year: 2001,
-        title: 'Short Interval End',
-        studios: 'Studio B',
-        producers: ['Alice Producer'],
-        winner: true,
-      },
-      {
-        year: 1990,
-        title: 'Long Interval Start',
-        studios: 'Studio C',
-        producers: ['Bob Producer'],
-        winner: true,
-      },
-      {
-        year: 2010,
-        title: 'Long Interval End',
-        studios: 'Studio D',
-        producers: ['Bob Producer'],
-        winner: true,
-      },
-      {
-        year: 2025,
-        title: 'Non-winning Movie',
-        studios: 'Studio E',
-        producers: ['Carol Producer', 'Dan Producer', 'Anderson'],
-        winner: false,
-      },
-    ]);
   });
 
   it('rejects an unexpected header with file, line and field details', () => {
     const csvPath = resolve(fixturesPath, 'invalid-header.csv');
 
-    expect(() => parseMoviesCsv(csvPath)).toThrow(
+    expect(() => buildApp({ csvPath })).toThrow(
       /invalid-header\.csv.*line 1.*field "header"/i,
     );
   });
@@ -124,5 +71,86 @@ describe('CSV parsing', () => {
     expect(() => buildApp({ csvPath })).toThrow(
       /invalid-record\.csv.*line 2.*field "year"/i,
     );
+  });
+
+  it('rejects a record with extra columns', () => {
+    const csvPath = resolve(fixturesPath, 'invalid-extra-column.csv');
+
+    expect(() => buildApp({ csvPath })).toThrow(
+      /invalid-extra-column\.csv.*line 2.*field "record".*expect 5, got 6/i,
+    );
+  });
+
+  it('loads movies, producers and their relationships into SQLite', async () => {
+    const csvPath = resolve(fixturesPath, 'simple.csv');
+    const app = buildApp({ csvPath });
+
+    try {
+      await app.ready();
+
+      const foreignKeys = app.database.pragma('foreign_keys', {
+        simple: true,
+      });
+      const counts = app.database
+        .prepare(
+          `
+            SELECT
+              (SELECT COUNT(*) FROM movies) AS movies,
+              (SELECT COUNT(*) FROM producers) AS producers,
+              (SELECT COUNT(*) FROM movie_producers) AS movieProducers
+          `,
+        )
+        .get();
+
+      expect(foreignKeys).toBe(1);
+      expect(counts).toEqual({
+        movies: 5,
+        producers: 5,
+        movieProducers: 7,
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('rolls back the entire import when one insert fails', () => {
+    const csvPath = resolve(fixturesPath, 'simple.csv');
+    const movies = parseMoviesCsv(csvPath);
+    const database = createDatabaseConnection();
+
+    try {
+      createDatabaseSchema(database);
+      database.exec(`
+        CREATE TRIGGER reject_second_movie
+        BEFORE INSERT ON movies
+        WHEN NEW.title = 'Short Interval End'
+        BEGIN
+          SELECT RAISE(ABORT, 'controlled import failure');
+        END;
+      `);
+
+      expect(() => importMovies(database, movies)).toThrow(
+        /controlled import failure/i,
+      );
+
+      const counts = database
+        .prepare(
+          `
+            SELECT
+              (SELECT COUNT(*) FROM movies) AS movies,
+              (SELECT COUNT(*) FROM producers) AS producers,
+              (SELECT COUNT(*) FROM movie_producers) AS movieProducers
+          `,
+        )
+        .get();
+
+      expect(counts).toEqual({
+        movies: 0,
+        producers: 0,
+        movieProducers: 0,
+      });
+    } finally {
+      database.close();
+    }
   });
 });

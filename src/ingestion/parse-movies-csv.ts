@@ -83,6 +83,7 @@ export function parseMoviesCsv(csvPath: string): ParsedMovie[] {
       bom: true,
       delimiter: ';',
       info: true,
+      relax_column_count: false,
       skip_empty_lines: true,
       trim: true,
     }) as unknown as CsvRecordWithInfo[];

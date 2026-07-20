@@ -3,6 +3,8 @@ import {
   createDatabaseConnection,
   type DatabaseConnection,
 } from './database/connection';
+import { createDatabaseSchema } from './database/schema';
+import { importMovies } from './ingestion/import-movies';
 import { parseMoviesCsv } from './ingestion/parse-movies-csv';
 
 declare module 'fastify' {
@@ -16,12 +18,20 @@ export interface BuildAppOptions {
 }
 
 export function buildApp(options: BuildAppOptions): FastifyInstance {
-  parseMoviesCsv(options.csvPath);
+  const movies = parseMoviesCsv(options.csvPath);
+  const database = createDatabaseConnection();
+
+  try {
+    createDatabaseSchema(database);
+    importMovies(database, movies);
+  } catch (error: unknown) {
+    database.close();
+    throw error;
+  }
 
   const app = Fastify({
     logger: true,
   });
-  const database = createDatabaseConnection();
 
   app.decorate('database', database);
   app.addHook('onClose', (_instance, done) => {
