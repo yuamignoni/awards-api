@@ -8,6 +8,23 @@ import { parseMoviesCsv } from '../src/ingestion/parse-movies-csv';
 
 const fixturesPath = resolve(__dirname, 'fixtures');
 
+async function requestAwardIntervals(fixtureName: string): Promise<unknown> {
+  const csvPath = resolve(fixturesPath, fixtureName);
+  const app = buildApp({ csvPath });
+
+  try {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/producers/award-intervals',
+    });
+
+    expect(response.statusCode).toBe(200);
+    return response.json();
+  } finally {
+    await app.close();
+  }
+}
+
 describe('GET /api/v1/producers/award-intervals', () => {
   it('returns the minimum and maximum intervals between consecutive wins', async () => {
     const csvPath = resolve(fixturesPath, 'simple.csv');
@@ -42,6 +59,95 @@ describe('GET /api/v1/producers/award-intervals', () => {
     } finally {
       await app.close();
     }
+  });
+
+  it('uses adjacent wins regardless of CSV order and preserves tied intervals', async () => {
+    await expect(requestAwardIntervals('consecutive-wins.csv')).resolves.toEqual({
+      min: [
+        {
+          producer: 'Beta Producer',
+          interval: 1,
+          previousWin: 2001,
+          followingWin: 2002,
+        },
+      ],
+      max: [
+        {
+          producer: 'Alpha Producer',
+          interval: 5,
+          previousWin: 2000,
+          followingWin: 2005,
+        },
+        {
+          producer: 'Alpha Producer',
+          interval: 5,
+          previousWin: 2005,
+          followingWin: 2010,
+        },
+      ],
+    });
+  });
+
+  it('preserves tied coproducer events, Anderson and wins in the same year', async () => {
+    await expect(requestAwardIntervals('tied-coproducers.csv')).resolves.toEqual({
+      min: [
+        {
+          producer: 'Anderson',
+          interval: 0,
+          previousWin: 2001,
+          followingWin: 2001,
+        },
+        {
+          producer: 'Gamma Producer',
+          interval: 0,
+          previousWin: 2001,
+          followingWin: 2001,
+        },
+      ],
+      max: [
+        {
+          producer: 'Beta Producer',
+          interval: 20,
+          previousWin: 1990,
+          followingWin: 2010,
+        },
+        {
+          producer: 'Shared Producer',
+          interval: 20,
+          previousWin: 1990,
+          followingWin: 2010,
+        },
+      ],
+    });
+  });
+
+  it('returns the same tied events in both arrays when min equals max', async () => {
+    const expectedIntervals = [
+      {
+        producer: 'Alpha Producer',
+        interval: 2,
+        previousWin: 2000,
+        followingWin: 2002,
+      },
+      {
+        producer: 'Beta Producer',
+        interval: 2,
+        previousWin: 2010,
+        followingWin: 2012,
+      },
+    ];
+
+    await expect(requestAwardIntervals('equal-intervals.csv')).resolves.toEqual({
+      min: expectedIntervals,
+      max: expectedIntervals,
+    });
+  });
+
+  it('accepts a BOM and returns empty arrays when there are no intervals', async () => {
+    await expect(requestAwardIntervals('bom-no-interval.csv')).resolves.toEqual({
+      min: [],
+      max: [],
+    });
   });
 });
 
