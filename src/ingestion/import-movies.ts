@@ -5,10 +5,16 @@ interface ProducerRow {
   id: number;
 }
 
+export interface ImportSummary {
+  movies: number;
+  producers: number;
+  movieProducers: number;
+}
+
 export function importMovies(
   database: DatabaseConnection,
   movies: ParsedMovie[],
-): void {
+): ImportSummary {
   const insertMovie = database.prepare(`
     INSERT INTO movies (year, title, studios, winner)
     VALUES (@year, @title, @studios, @winner)
@@ -24,7 +30,13 @@ export function importMovies(
     VALUES (?, ?)
   `);
 
-  const importAll = database.transaction(() => {
+  const importAll = database.transaction((): ImportSummary => {
+    const summary: ImportSummary = {
+      movies: 0,
+      producers: 0,
+      movieProducers: 0,
+    };
+
     for (const movie of movies) {
       const movieResult = insertMovie.run({
         year: movie.year,
@@ -32,9 +44,10 @@ export function importMovies(
         studios: movie.studios,
         winner: Number(movie.winner),
       });
+      summary.movies += 1;
 
       for (const producer of movie.producers) {
-        insertProducer.run(producer);
+        const producerResult = insertProducer.run(producer);
         const producerRow = findProducer.get(producer) as ProducerRow | undefined;
 
         if (producerRow === undefined) {
@@ -42,9 +55,13 @@ export function importMovies(
         }
 
         insertMovieProducer.run(movieResult.lastInsertRowid, producerRow.id);
+        summary.producers += producerResult.changes;
+        summary.movieProducers += 1;
       }
     }
+
+    return summary;
   });
 
-  importAll();
+  return importAll();
 }

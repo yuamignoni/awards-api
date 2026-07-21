@@ -1,22 +1,11 @@
 # Awards API
 
-API REST em Node.js e TypeScript para calcular os produtores com o menor e o maior intervalo entre vitórias consecutivas no Golden Raspberry Awards.
+API REST em Node.js e TypeScript que calcula os produtores com o menor e o maior intervalo entre vitórias consecutivas no Golden Raspberry Awards.
 
-## Fluxo planejado:
+## Requisitos
 
-```text
-CSV → validação → SQLite → consulta SQL → resposta HTTP
-```
-
-## Tecnologias
-
-- Node.js 22+
-- TypeScript
-- Fastify
-- SQLite com `better-sqlite3`
-- `csv-parse`
-- Zod
-- Vitest
+- Node.js 22 ou superior
+- npm
 
 ## Instalação
 
@@ -31,28 +20,17 @@ npm run build
 npm start
 ```
 
-O servidor utiliza por padrão:
+O servidor lê `data/Movielist.csv` durante o startup e fica disponível em `http://localhost:3000`. A carga utiliza um banco SQLite em memória e uma única transação. Se o CSV for inválido ou a carga falhar, o servidor não começa a escutar requisições.
 
-```text
-http://localhost:3000
-```
+Após uma carga bem-sucedida, a aplicação registra um log estruturado com o caminho do CSV e as quantidades de filmes, produtores e relacionamentos importados.
 
-## Comandos
-
-| Comando | Descrição |
-|---|---|
-| `npm test` | Executa os testes de integração |
-| `npm run typecheck` | Verifica os tipos do código e dos testes |
-| `npm run build` | Compila o código de produção para `dist/` |
-| `npm start` | Executa a aplicação compilada |
-
-## Endpoint planejado
+## Endpoint
 
 ```http
 GET /api/v1/producers/award-intervals
 ```
 
-Formato esperado da resposta:
+Resposta `200`:
 
 ```json
 {
@@ -74,3 +52,24 @@ Formato esperado da resposta:
   ]
 }
 ```
+
+A consulta considera apenas filmes vencedores, compara vitórias adjacentes de cada produtor e preserva todos os empates. Quando não existem intervalos elegíveis, `min` e `max` são arrays vazios.
+
+## Validação
+
+```bash
+npm test
+npm run typecheck
+npm run build
+```
+
+Os testes são de integração e percorrem CSV, validação, SQLite, consulta SQL e endpoint Fastify sem abrir uma porta real.
+
+## Tecnologias
+
+- TypeScript
+- Fastify
+- SQLite com `better-sqlite3`
+- `csv-parse`
+- Zod
+- Vitest

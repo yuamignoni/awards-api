@@ -5,7 +5,10 @@ import {
   type DatabaseConnection,
 } from './database/connection';
 import { createDatabaseSchema } from './database/schema';
-import { importMovies } from './ingestion/import-movies';
+import {
+  importMovies,
+  type ImportSummary,
+} from './ingestion/import-movies';
 import { parseMoviesCsv } from './ingestion/parse-movies-csv';
 
 declare module 'fastify' {
@@ -21,10 +24,11 @@ export interface BuildAppOptions {
 export function buildApp(options: BuildAppOptions): FastifyInstance {
   const movies = parseMoviesCsv(options.csvPath);
   const database = createDatabaseConnection();
+  let importSummary: ImportSummary;
 
   try {
     createDatabaseSchema(database);
-    importMovies(database, movies);
+    importSummary = importMovies(database, movies);
   } catch (error: unknown) {
     database.close();
     throw error;
@@ -35,6 +39,10 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   app.decorate('database', database);
+  app.log.info(
+    { csvPath: options.csvPath, ingestion: importSummary },
+    'CSV import completed',
+  );
   registerAwardIntervalRoute(app);
   app.addHook('onClose', (_instance, done) => {
     database.close();

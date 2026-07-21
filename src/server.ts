@@ -3,7 +3,7 @@ import { buildApp } from './app';
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '0.0.0.0';
-const DEFAULT_CSV_PATH = resolve(process.cwd(), 'data/Movielist.csv');
+const DEFAULT_CSV_PATH = resolve(__dirname, '../data/Movielist.csv');
 
 async function start(): Promise<void> {
   const app = buildApp({ csvPath: DEFAULT_CSV_PATH });
