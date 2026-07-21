@@ -149,6 +149,56 @@ describe('GET /api/v1/producers/award-intervals', () => {
       max: [],
     });
   });
+
+  it('returns the expected intervals for Movielist.csv', async () => {
+    const csvPath = resolve(__dirname, '../data/Movielist.csv');
+    const app = buildApp({ csvPath });
+
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/producers/award-intervals',
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        min: [
+          {
+            producer: 'Joel Silver',
+            interval: 1,
+            previousWin: 1990,
+            followingWin: 1991,
+          },
+        ],
+        max: [
+          {
+            producer: 'Matthew Vaughn',
+            interval: 13,
+            previousWin: 2002,
+            followingWin: 2015,
+          },
+        ],
+      });
+      expect(
+        app.database
+          .prepare(
+            `
+              SELECT
+                (SELECT COUNT(*) FROM movies) AS movies,
+                (SELECT COUNT(*) FROM producers) AS producers,
+                (SELECT COUNT(*) FROM movie_producers) AS movieProducers
+            `,
+          )
+          .get(),
+      ).toEqual({
+        movies: 206,
+        producers: 359,
+        movieProducers: 472,
+      });
+    } finally {
+      await app.close();
+    }
+  });
 });
 
 describe('application bootstrap from CSV', () => {
