@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import { registerAwardIntervalRoute } from './awards/award-interval.route';
 import {
   createDatabaseConnection,
   type DatabaseConnection,
@@ -34,6 +35,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
 
   app.decorate('database', database);
+  registerAwardIntervalRoute(app);
   app.addHook('onClose', (_instance, done) => {
     database.close();
     done();

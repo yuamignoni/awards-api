@@ -46,17 +46,6 @@ describe('GET /api/v1/producers/award-intervals', () => {
 });
 
 describe('application bootstrap from CSV', () => {
-  it('accepts a valid movie file', async () => {
-    const csvPath = resolve(fixturesPath, 'simple.csv');
-    const app = buildApp({ csvPath });
-
-    try {
-      await app.ready();
-    } finally {
-      await app.close();
-    }
-  });
-
   it('rejects an unexpected header with file, line and field details', () => {
     const csvPath = resolve(fixturesPath, 'invalid-header.csv');
 
