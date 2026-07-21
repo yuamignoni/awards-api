@@ -5,8 +5,21 @@ const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '0.0.0.0';
 const DEFAULT_CSV_PATH = resolve(__dirname, '../data/Movielist.csv');
 
-async function start(): Promise<void> {
-  const app = buildApp({ csvPath: DEFAULT_CSV_PATH });
+export interface StartOptions {
+  csvPath?: string;
+}
+
+export async function start(options: StartOptions = {}): Promise<void> {
+  let app: ReturnType<typeof buildApp>;
+
+  try {
+    app = buildApp({ csvPath: options.csvPath ?? DEFAULT_CSV_PATH });
+  } catch (error: unknown) {
+    console.error('Failed to start application', error);
+    process.exitCode = 1;
+    return;
+  }
+
   let isShuttingDown = false;
 
   async function shutdown(reason: NodeJS.Signals | 'startup-error'): Promise<void> {
@@ -44,4 +57,6 @@ async function start(): Promise<void> {
   }
 }
 
-void start();
+if (require.main === module) {
+  void start();
+}

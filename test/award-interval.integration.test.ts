@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app';
+import { start } from '../src/server';
 import { createDatabaseConnection } from '../src/database/connection';
 import { createDatabaseSchema } from '../src/database/schema';
 import { importMovies } from '../src/ingestion/import-movies';
@@ -202,6 +203,30 @@ describe('GET /api/v1/producers/award-intervals', () => {
 });
 
 describe('application bootstrap from CSV', () => {
+  it('handles CSV bootstrap failures before listen', async () => {
+    const previousExitCode = process.exitCode;
+    process.exitCode = undefined;
+    const csvPath = resolve(fixturesPath, 'invalid-record.csv');
+    const diagnostic = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    try {
+      await expect(start({ csvPath })).resolves.toBeUndefined();
+
+      expect(process.exitCode).toBe(1);
+      expect(diagnostic).toHaveBeenCalledWith(
+        'Failed to start application',
+        expect.objectContaining({
+          message: expect.stringMatching(
+            /invalid-record\.csv.*line 2.*field "year"/i,
+          ),
+        }),
+      );
+    } finally {
+      process.exitCode = previousExitCode;
+      diagnostic.mockRestore();
+    }
+  });
+
   it('rejects an unexpected header with file, line and field details', () => {
     const csvPath = resolve(fixturesPath, 'invalid-header.csv');
 
