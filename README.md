@@ -9,8 +9,10 @@ API REST em Node.js e TypeScript que calcula os produtores com o menor e o maior
 
 ## Instalação
 
+Instale também as `devDependencies` necessárias aos testes, typecheck e build:
+
 ```bash
-npm ci
+npm ci --include=dev
 ```
 
 ## Execução
