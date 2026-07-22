@@ -243,6 +243,14 @@ describe('application bootstrap from CSV', () => {
     );
   });
 
+  it('rejects duplicate producers in the same CSV row after normalization', () => {
+    const csvPath = resolve(fixturesPath, 'invalid-duplicate-producer.csv');
+
+    expect(() => buildApp({ csvPath })).toThrow(
+      /invalid-duplicate-producer\.csv.*line 2.*field "producers".*Dup Producer/i,
+    );
+  });
+
   it('rejects a record with extra columns', () => {
     const csvPath = resolve(fixturesPath, 'invalid-extra-column.csv');
 

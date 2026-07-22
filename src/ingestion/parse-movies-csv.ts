@@ -16,7 +16,26 @@ const movieRecordSchema = z.object({
     .string()
     .min(1, 'must not be empty')
     .transform(normalizeProducers)
-    .pipe(z.array(z.string().min(1)).min(1, 'must contain at least one producer')),
+    .pipe(
+      z
+        .array(z.string().min(1))
+        .min(1, 'must contain at least one producer')
+        .superRefine((producers, context) => {
+          const seenProducers = new Set<string>();
+
+          for (const producer of producers) {
+            if (seenProducers.has(producer)) {
+              context.addIssue({
+                code: 'custom',
+                message: `duplicate producer "${producer}"`,
+              });
+              return;
+            }
+
+            seenProducers.add(producer);
+          }
+        }),
+    ),
   winner: z.enum(['', 'yes']).transform((value) => value === 'yes'),
 });
 
